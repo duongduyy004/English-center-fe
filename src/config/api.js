@@ -80,6 +80,7 @@ export const API_CONFIG = {
       GET_TEACHER_PAYMENTS: '/teacher-payments',
       PAY_TEACHER: (id) => `/teacher-payments/${id}/pay`,
       GET_TEACHER_PAYMENT_BY_ID: (id) => `/teacher-payments/${id}`,
+      UPDATE_RECORD: (paymentId) => `/payments/${paymentId}/record`,
     },
     SCHEDULES: {
       GET_STUDENT_SCHEDULE: '/schedules/student/me',

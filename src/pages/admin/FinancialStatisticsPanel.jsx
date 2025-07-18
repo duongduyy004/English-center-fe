@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Grid, TextField, MenuItem, Card, CardContent, Tabs, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Pagination, IconButton, Button, Dialog, DialogTitle, DialogContent, DialogActions, Alert, InputAdornment, Tooltip
 } from '@mui/material';
-import { History as HistoryIcon, Visibility as VisibilityIcon } from '@mui/icons-material';
-import { getPaymentsAPI, getTeacherPaymentsAPI, payTeacherAPI, getTotalPaymentsAPI, getTeacherByIdAPI } from '../../services/api';
+import { History as HistoryIcon, Visibility as VisibilityIcon, Edit as EditIcon, Payment as PaymentIcon } from '@mui/icons-material';
+import { getPaymentsAPI, getTeacherPaymentsAPI, payTeacherAPI, getTotalPaymentsAPI, getTeacherByIdAPI, updatePaymentRecordAPI } from '../../services/api';
 import PaymentHistoryModal from '../../components/common/PaymentHistoryModal';
 import NotificationSnackbar from '../../components/common/NotificationSnackbar';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
@@ -63,6 +63,16 @@ const FinancialStatisticsPanel = () => {
   // ConfirmDialog states for teacher payment
   const [teacherPaymentConfirmOpen, setTeacherPaymentConfirmOpen] = useState(false);
   const [teacherPaymentConfirmData, setTeacherPaymentConfirmData] = useState(null);
+
+  // Student payment update dialog states
+  const [studentPaymentUpdateOpen, setStudentPaymentUpdateOpen] = useState(false);
+  const [selectedStudentPayment, setSelectedStudentPayment] = useState(null);
+  const [studentPaymentUpdateData, setStudentPaymentUpdateData] = useState({
+    amount: '',
+    method: 'cash',
+    note: ''
+  });
+  const [studentPaymentUpdateLoading, setStudentPaymentUpdateLoading] = useState(false);
 
   // Helper: Lấy tháng đầu/cuối quý
   const getQuarterMonths = (quarter) => {
@@ -437,7 +447,83 @@ const FinancialStatisticsPanel = () => {
     setSnackbar({ ...snackbar, open: false });
   };
 
-  // Thông tin chi tiết giáo viên
+  // Student payment update functions
+  const handleOpenStudentPaymentUpdate = (payment) => {
+    setSelectedStudentPayment(payment);
+    setStudentPaymentUpdateData({
+      amount: (payment.remainingAmount || 0).toString(),
+      method: 'cash',
+      note: ''
+    });
+    setStudentPaymentUpdateOpen(true);
+  };
+
+  const handleCloseStudentPaymentUpdate = () => {
+    setStudentPaymentUpdateOpen(false);
+    setSelectedStudentPayment(null);
+    setStudentPaymentUpdateData({
+      amount: '',
+      method: 'cash',
+      note: ''
+    });
+  };
+
+  const handleUpdateStudentPayment = async () => {
+    if (!selectedStudentPayment) return;
+
+    const amount = parseFloat(studentPaymentUpdateData.amount);
+    if (isNaN(amount) || amount <= 0) {
+      setSnackbar({
+        open: true,
+        message: 'Số tiền thanh toán không hợp lệ',
+        severity: 'error'
+      });
+      return;
+    }
+
+    const remainingAmount = selectedStudentPayment.remainingAmount || 0;
+    if (amount > remainingAmount) {
+      setSnackbar({
+        open: true,
+        message: 'Số tiền thanh toán không được vượt quá số tiền còn lại',
+        severity: 'error'
+      });
+      return;
+    }
+
+    setStudentPaymentUpdateLoading(true);
+    try {
+      const paymentData = {
+        amount,
+        method: studentPaymentUpdateData.method,
+        note: studentPaymentUpdateData.note || 'Thanh toán bằng tay bởi admin'
+      };
+
+      // Use the manual payment endpoint
+      await updatePaymentRecordAPI(selectedStudentPayment.id, paymentData);
+
+      setSnackbar({
+        open: true,
+        message: 'Thanh toán thành công!',
+        severity: 'success'
+      });
+
+      // Refresh data
+      await fetchStudentPayments(studentPagination.page);
+      await fetchTotalStatistics();
+
+      handleCloseStudentPaymentUpdate();
+    } catch (error) {
+      console.error('Error processing manual payment:', error);
+      setSnackbar({
+        open: true,
+        message: error.response?.data?.message || 'Có lỗi xảy ra khi thanh toán',
+        severity: 'error'
+      });
+    } finally {
+      setStudentPaymentUpdateLoading(false);
+    }
+  };  // Thông tin chi tiết giáo viên
   const [teacherDetailInfo, setTeacherDetailInfo] = useState(null);
 
   // Debug: theo dõi thay đổi teacherDetailInfo
@@ -569,112 +655,111 @@ const FinancialStatisticsPanel = () => {
         <Box sx={{ p: 2 }}>
           {tab === 0 && (
             <>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Giáo viên</TableCell>
-                    <TableCell align="center">Tháng/Năm</TableCell>
-                    <TableCell align="right">Lương/buổi</TableCell>
-                    <TableCell align="right">Số buổi dạy</TableCell>
-                    <TableCell align="right">Tổng lương</TableCell>
-                    <TableCell align="right">Đã trả</TableCell>
-                    <TableCell align="center">Trạng thái</TableCell>
-                    <TableCell align="center">Thao tác</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {teacherPayments.map((p) => (
-                    <TableRow key={p.id} hover>
-                      <TableCell>
-                        <Typography variant="body2" fontWeight="medium">
-                          {p.teacherId?.userId?.name || p.teacherId?.name || 'Chưa có tên'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="center">{p.month || 0}/{p.year || 0}</TableCell>
-                      <TableCell align="right">{(p.salaryPerLesson ?? 0).toLocaleString()} ₫</TableCell>
-                      <TableCell align="right">
-                        {p.classes && Array.isArray(p.classes)
-                          ? p.classes.reduce((sum, classItem) => sum + (classItem.totalLessons || 0), 0)
-                          : 0
-                        }
-                      </TableCell>
-                      <TableCell align="right">{(p.totalAmount ?? 0).toLocaleString()} ₫</TableCell>
-                      <TableCell align="right">{(p.paidAmount ?? 0).toLocaleString()} ₫</TableCell>
-                      <TableCell align="center">
-                        <Chip
-                          label={p.status === 'paid' ? 'Đã thanh toán' : p.status === 'partial' ? 'Nhận một phần' : p.status === 'pending' ? 'Chờ thanh toán' : 'Chưa thanh toán'}
-                          color={p.status === 'paid' ? 'success' : p.status === 'partial' ? 'warning' : p.status === 'pending' ? 'info' : 'error'}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell align="center">
-                        <Tooltip title="Xem chi tiết">
-                          <IconButton size="small" color="primary" onClick={() => handleOpenTeacherDetail(p)}>
-                            <VisibilityIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Lịch sử thanh toán">
-                          <IconButton size="small" color="info" onClick={() => handleOpenPaymentHistory(p)}>
-                            <HistoryIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        {((p.totalAmount ?? 0) - (p.paidAmount ?? 0) > 0) && (
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Giáo viên</TableCell>
+                      <TableCell align="center">Tháng/Năm</TableCell>
+                      <TableCell align="right">Lương/buổi</TableCell>
+                      <TableCell align="right">Số buổi dạy</TableCell>
+                      <TableCell align="right">Tổng lương</TableCell>
+                      <TableCell align="right">Đã trả</TableCell>
+                      <TableCell align="center">Trạng thái</TableCell>
+                      <TableCell align="center">Thao tác</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {teacherPayments.map((p) => (
+                      <TableRow key={p.id} hover>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight="medium">
+                            {p.teacherId?.userId?.name || p.teacherId?.name || 'Chưa có tên'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="center">{p.month || 0}/{p.year || 0}</TableCell>
+                        <TableCell align="right">{(p.salaryPerLesson ?? 0).toLocaleString()} ₫</TableCell>
+                        <TableCell align="right">
+                          {p.classes && Array.isArray(p.classes)
+                            ? p.classes.reduce((sum, classItem) => sum + (classItem.totalLessons || 0), 0)
+                            : 0
+                          }
+                        </TableCell>
+                        <TableCell align="right">{(p.totalAmount ?? 0).toLocaleString()} ₫</TableCell>
+                        <TableCell align="right">{(p.paidAmount ?? 0).toLocaleString()} ₫</TableCell>
+                        <TableCell align="center">
+                          <Chip
+                            label={p.status === 'paid' ? 'Đã thanh toán' : p.status === 'partial' ? 'Nhận một phần' : p.status === 'pending' ? 'Chờ thanh toán' : 'Chưa thanh toán'}
+                            color={p.status === 'paid' ? 'success' : p.status === 'partial' ? 'warning' : p.status === 'pending' ? 'info' : 'error'}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="center">
+                          <Tooltip title="Xem chi tiết">
+                            <IconButton size="small" color="primary" onClick={() => handleOpenTeacherDetail(p)}>
+                              <VisibilityIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Lịch sử thanh toán">
+                            <IconButton size="small" color="info" onClick={() => handleOpenPaymentHistory(p)}>
+                              <HistoryIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
                           <Button
                             variant="contained"
                             color="primary"
                             size="small"
                             sx={{ ml: 1 }}
+                            disabled={((p.totalAmount ?? 0) - (p.paidAmount ?? 0) <= 0)}
                             onClick={() => handleOpenTeacherPaymentDialog(p)}
                           >
                             Thanh toán
                           </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            {/* Pagination for Teacher */}
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-              <Pagination
-                count={teacherPagination.totalPages}
-                page={teacherPagination.page}
-                onChange={handleTeacherPageChange}
-                color="primary"
-              />
-            </Box>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              {/* Pagination for Teacher */}
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <Pagination
+                  count={teacherPagination.totalPages}
+                  page={teacherPagination.page}
+                  onChange={handleTeacherPageChange}
+                  color="primary"
+                />
+              </Box>
             </>
           )}
           {tab === 1 && (
             <>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Học sinh</TableCell>
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Học sinh</TableCell>
                       <TableCell>Lớp</TableCell>
-                    <TableCell align="center">Tháng</TableCell>
+                      <TableCell align="center">Tháng</TableCell>
                       <TableCell align="center">Số buổi học</TableCell>
-                    <TableCell align="center">Số tiền gốc</TableCell>
-                    <TableCell align="center">Giảm giá</TableCell>
-                    <TableCell align="center">Số tiền cuối</TableCell>
+                      <TableCell align="center">Số tiền gốc</TableCell>
+                      <TableCell align="center">Giảm giá</TableCell>
+                      <TableCell align="center">Số tiền cuối</TableCell>
                       <TableCell align="center">Đã đóng</TableCell>
                       <TableCell align="center">Còn thiếu</TableCell>
-                    <TableCell align="center">Trạng thái</TableCell>
+                      <TableCell align="center">Trạng thái</TableCell>
                       <TableCell align="center">Thao tác</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
                     {studentPayments.map((p) => (
-                    <TableRow key={p.id} hover>
+                      <TableRow key={p.id} hover>
                         <TableCell>{p.studentId?.userId?.name || p.studentId?.name || 'Chưa có tên'}</TableCell>
                         <TableCell>{p.classId?.name || 'Chưa có tên lớp'}</TableCell>
                         <TableCell align="center">{p.month || 0}/{p.year || 0}</TableCell>
                         <TableCell align="center">{p.attendedLessons || 0}</TableCell>
-                      <TableCell align="center">{(p.totalAmount ?? 0).toLocaleString()} ₫</TableCell>
-                      <TableCell align="center">{(p.discountAmount ?? 0).toLocaleString()} ₫</TableCell>
+                        <TableCell align="center">{(p.totalAmount ?? 0).toLocaleString()} ₫</TableCell>
+                        <TableCell align="center">{(p.discountAmount ?? 0).toLocaleString()} ₫</TableCell>
                         <TableCell align="center">{(p.finalAmount ?? 0).toLocaleString()} ₫</TableCell>
                         <TableCell align="center">{(p.paidAmount ?? 0).toLocaleString()} ₫</TableCell>
                         <TableCell align="center">{(p.remainingAmount ?? 0).toLocaleString()} ₫</TableCell>
@@ -685,16 +770,28 @@ const FinancialStatisticsPanel = () => {
                             size="small"
                           />
                         </TableCell>
-                      <TableCell align="center">
-                          <IconButton onClick={() => handleOpenPaymentHistory(p)}>
-                            <HistoryIcon />
-                          </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                        <TableCell align="center">
+                          <Tooltip title="Lịch sử thanh toán">
+                            <IconButton size="small" color="info" onClick={() => handleOpenPaymentHistory(p)}>
+                              <HistoryIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Button
+                            variant="contained"
+                            color="primary"
+                            size="small"
+                            sx={{ ml: 1 }}
+                            disabled={p.remainingAmount <= 0}
+                            onClick={() => handleOpenStudentPaymentUpdate(p)}
+                          >
+                            Thanh toán
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
               {/* Pagination */}
               <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
                 <Pagination
@@ -1128,6 +1225,204 @@ const FinancialStatisticsPanel = () => {
         cancelText="Hủy"
         loading={teacherPaymentLoading}
       />
+
+      {/* Student Payment Update Dialog */}
+      <Dialog
+        open={studentPaymentUpdateOpen}
+        onClose={handleCloseStudentPaymentUpdate}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+            overflow: 'hidden'
+          }
+        }}
+      >
+        <DialogTitle sx={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          py: 3,
+          px: 4,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 600, mb: 0.5 }}>
+              Thanh toán bằng tay
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.9 }}>
+              Thực hiện thanh toán học phí cho học sinh
+            </Typography>
+          </Box>
+          <Box sx={{
+            bgcolor: 'rgba(255,255,255,0.2)',
+            borderRadius: '50%',
+            p: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <PaymentIcon sx={{ fontSize: 28, color: 'white' }} />
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0 }}>
+          <Box sx={{ p: 4 }}>
+            {selectedStudentPayment && (
+              <Grid container spacing={3}>
+                {/* Student Info */}
+                <Grid item xs={12}>
+                  <Paper sx={{
+                    p: 3,
+                    mb: 3,
+                    borderRadius: 2,
+                    background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+                    border: '1px solid #e0e6ed'
+                  }}>
+                    <Typography variant="h6" sx={{
+                      color: '#2c3e50',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      mb: 2
+                    }}>
+                      <Box sx={{
+                        width: 4,
+                        height: 20,
+                        bgcolor: '#667eea',
+                        borderRadius: 2
+                      }} />
+                      Thông tin học sinh
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" sx={{ color: '#666' }}>
+                          Tên học sinh:
+                        </Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 500, color: '#2c3e50' }}>
+                          {selectedStudentPayment.studentId?.userId?.name || selectedStudentPayment.studentId?.name}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" sx={{ color: '#666' }}>
+                          Lớp học:
+                        </Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 500, color: '#2c3e50' }}>
+                          {selectedStudentPayment.classId?.name}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" sx={{ color: '#666' }}>
+                          Tháng/Năm:
+                        </Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 500, color: '#2c3e50' }}>
+                          {selectedStudentPayment.month}/{selectedStudentPayment.year}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" sx={{ color: '#666' }}>
+                          Số tiền còn lại:
+                        </Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 600, color: '#e74c3c' }}>
+                          {(selectedStudentPayment.remainingAmount || 0).toLocaleString()} ₫
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Paper>
+                </Grid>
+
+                {/* Update Form */}
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Số tiền thanh toán"
+                    type="number"
+                    value={studentPaymentUpdateData.amount}
+                    onChange={(e) => setStudentPaymentUpdateData({
+                      ...studentPaymentUpdateData,
+                      amount: e.target.value
+                    })}
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start">VNĐ</InputAdornment>,
+                    }}
+                    helperText={`Tối đa: ${(selectedStudentPayment.remainingAmount || 0).toLocaleString()} ₫`}
+                  />
+                </Grid>
+
+                <Grid item xs={12}>
+                  <TextField
+                    select
+                    fullWidth
+                    label="Phương thức thanh toán"
+                    value={studentPaymentUpdateData.method}
+                    onChange={(e) => setStudentPaymentUpdateData({
+                      ...studentPaymentUpdateData,
+                      method: e.target.value
+                    })}
+                  >
+                    <MenuItem value="cash">Tiền mặt</MenuItem>
+                    <MenuItem value="bank_transfer">Chuyển khoản</MenuItem>
+                    <MenuItem value="card">Thẻ</MenuItem>
+                  </TextField>
+                </Grid>
+
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Ghi chú"
+                    multiline
+                    rows={3}
+                    value={studentPaymentUpdateData.note}
+                    onChange={(e) => setStudentPaymentUpdateData({
+                      ...studentPaymentUpdateData,
+                      note: e.target.value
+                    })}
+                    placeholder="Ghi chú về việc thanh toán..."
+                  />
+                </Grid>
+              </Grid>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, bgcolor: '#f8f9fa' }}>
+          <Button
+            onClick={handleCloseStudentPaymentUpdate}
+            disabled={studentPaymentUpdateLoading}
+            variant="outlined"
+            sx={{
+              borderColor: '#667eea',
+              color: '#667eea',
+              '&:hover': {
+                borderColor: '#5a6fd8',
+                bgcolor: 'rgba(102, 126, 234, 0.04)'
+              },
+              px: 3,
+              py: 1,
+              borderRadius: 2
+            }}
+          >
+            Hủy
+          </Button>
+          <Button
+            onClick={handleUpdateStudentPayment}
+            variant="contained"
+            disabled={studentPaymentUpdateLoading}
+            sx={{
+              bgcolor: '#667eea',
+              '&:hover': { bgcolor: '#5a6fd8' },
+              '&:disabled': { bgcolor: '#ccc' },
+              px: 3,
+              py: 1,
+              borderRadius: 2
+            }}
+          >
+            {studentPaymentUpdateLoading ? 'Đang xử lý...' : 'Thanh toán'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
