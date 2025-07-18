@@ -10,4 +10,3 @@ export * from './payment.service';
 export * from './schedule.service';
 export * from './announcement.service';
 export * from './dashboard.service';
-export * from './vnpay.service';

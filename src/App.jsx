@@ -45,9 +45,6 @@ import ParentChildren from './pages/parent/Children';
 import ParentPayments from './pages/parent/Payments';
 import ParentProfile from './pages/Profile/ParentProfile';
 
-// Payment Pages
-import VNPayReturn from './pages/payment/VNPayReturn';
-
 import { USER_ROLES } from './utils/constants';
 
 function App() {
@@ -64,7 +61,6 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/auth/verify-email" element={<VerifyEmail />} />
-            <Route path="/payment/vnpay-return" element={<VNPayReturn />} />
             <Route path="/profile" element={
               !user ? <Navigate to="/" replace /> : (
                 <Navigate to={

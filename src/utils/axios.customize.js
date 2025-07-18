@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { configDotenv } from 'dotenv';
 
 // Tạo custom event để thông báo logout
 const createLogoutEvent = () => {
@@ -9,11 +10,8 @@ const createLogoutEvent = () => {
 };
 
 const instance = axios.create({
-    baseURL: 'http://localhost:3000/api/v1',
-    timeout: 60000,
-    headers: {
-        'Content-Type': 'application/json'
-    }
+    baseURL: `${import.meta.env.VITE_BACKEND_URL}/api/v1`,
+    timeout: 60000
 });
 
 // Biến để tránh gọi refresh token nhiều lần

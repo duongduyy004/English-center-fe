@@ -22,3 +22,5 @@ export const payTeacherAPI = (id, data, params = {}) => {
 };
 
 export const getTeacherPaymentByIdAPI = (id) => axiosInstance.get(API_CONFIG.ENDPOINTS.PAYMENTS.GET_TEACHER_PAYMENT_BY_ID(id));
+
+export const getReturnURLAPI = () => axiosInstance.get(API_CONFIG.ENDPOINTS.PAYMENTS.GET_RETURN_URL);
