@@ -695,26 +695,28 @@ const FinancialStatisticsPanel = () => {
                           />
                         </TableCell>
                         <TableCell align="center">
-                          <Tooltip title="Xem chi tiết">
-                            <IconButton size="small" color="primary" onClick={() => handleOpenTeacherDetail(p)}>
-                              <VisibilityIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Lịch sử thanh toán">
-                            <IconButton size="small" color="info" onClick={() => handleOpenPaymentHistory(p)}>
-                              <HistoryIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Button
-                            variant="contained"
-                            color="primary"
-                            size="small"
-                            sx={{ ml: 1 }}
-                            disabled={((p.totalAmount ?? 0) - (p.paidAmount ?? 0) <= 0)}
-                            onClick={() => handleOpenTeacherPaymentDialog(p)}
-                          >
-                            Thanh toán
-                          </Button>
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                            <Tooltip title="Xem chi tiết">
+                              <IconButton size="small" color="primary" onClick={() => handleOpenTeacherDetail(p)}>
+                                <VisibilityIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Lịch sử thanh toán">
+                              <IconButton size="small" color="info" onClick={() => handleOpenPaymentHistory(p)}>
+                                <HistoryIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Button
+                              variant="contained"
+                              color="primary"
+                              size="small"
+                              disabled={((p.totalAmount ?? 0) - (p.paidAmount ?? 0) <= 0)}
+                              onClick={() => handleOpenTeacherPaymentDialog(p)}
+                              sx={{ whiteSpace: 'nowrap' }}
+                            >
+                              Thanh toán
+                            </Button>
+                          </Box>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -771,21 +773,23 @@ const FinancialStatisticsPanel = () => {
                           />
                         </TableCell>
                         <TableCell align="center">
-                          <Tooltip title="Lịch sử thanh toán">
-                            <IconButton size="small" color="info" onClick={() => handleOpenPaymentHistory(p)}>
-                              <HistoryIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Button
-                            variant="contained"
-                            color="primary"
-                            size="small"
-                            sx={{ ml: 1 }}
-                            disabled={p.remainingAmount <= 0}
-                            onClick={() => handleOpenStudentPaymentUpdate(p)}
-                          >
-                            Thanh toán
-                          </Button>
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                            <Tooltip title="Lịch sử thanh toán">
+                              <IconButton size="small" color="info" onClick={() => handleOpenPaymentHistory(p)}>
+                                <HistoryIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Button
+                              variant="contained"
+                              color="primary"
+                              size="small"
+                              disabled={p.remainingAmount <= 0}
+                              onClick={() => handleOpenStudentPaymentUpdate(p)}
+                              sx={{ whiteSpace: 'nowrap' }}
+                            >
+                              Thanh toán
+                            </Button>
+                          </Box>
                         </TableCell>
                       </TableRow>
                     ))}

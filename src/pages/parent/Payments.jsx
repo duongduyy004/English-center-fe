@@ -583,17 +583,7 @@ const Payments = () => {
                         />
                       </TableCell>
                       <TableCell align="left">
-                        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'left' }}>
-                          {invoice.status !== 'paid' ? (
-                            <Button
-                              variant="contained"
-                              color="primary"
-                              size="small"
-                              onClick={() => handlePayment(invoice)}
-                            >
-                              Thanh toán
-                            </Button>
-                          ) : null}
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'left', gap: 1 }}>
                           {invoice.paymentHistory && invoice.paymentHistory.length > 0 && (
                             <IconButton
                               size="small"
@@ -604,6 +594,16 @@ const Payments = () => {
                               <HistoryIcon />
                             </IconButton>
                           )}
+                          <Button
+                            variant="contained"
+                            color="primary"
+                            size="small"
+                            disabled={invoice.status === 'paid'}
+                            onClick={() => handlePayment(invoice)}
+                            sx={{ whiteSpace: 'nowrap' }}
+                          >
+                            Thanh toán
+                          </Button>
                         </Box>
                       </TableCell>
                     </TableRow>
